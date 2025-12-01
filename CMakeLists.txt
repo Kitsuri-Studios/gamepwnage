@@ -39,8 +39,8 @@ if(WIN32)
 else()
     # in case of unix based systems
 
-    set(SOURCE_FILES "src/mem.c" "src/nop.c" "src/proc.c")
-    set(HEADER_FILES "src/config.h" "src/mem.h" "src/nop.h" "src/proc.h")
+    set(SOURCE_FILES "src/mem.c" "src/nop.c" "src/proc.c" "src/dynlib.c")
+    set(HEADER_FILES "src/config.h" "src/mem.h" "src/nop.h" "src/proc.h" "src/dynlib.h")
 
     # set arm specific stuffs
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm" OR CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")

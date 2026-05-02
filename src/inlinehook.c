@@ -35,6 +35,7 @@
 #include "hook86.h"
 #elif defined(__arm__) || defined (__aarch64__)
 #include "armhook.h"
+#include "reloc64.h"
 #endif
 
 #ifdef __aarch64__
@@ -311,7 +312,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
     size_t page_size = (size_t) sysconf(_SC_PAGESIZE);
     void *aligned_addr = (void*) ((uintptr_t) address & ~(page_size - 1));
     // allocate the trampoline
-    handle->trampoline_addr = mmap_near(aligned_addr, page_size, PROT_EXEC | PROT_READ);
+    handle->trampoline_addr = mmap_near(aligned_addr, page_size, PROT_EXEC | PROT_READ | PROT_WRITE);
     if(handle->trampoline_addr == MAP_FAILED) {
         // perror("mmap() failed.");
         free(handle);
@@ -410,31 +411,22 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         return handle;
     }
     if ((!flags || (flags & GPWN_AARCH64_LEGACYHOOK) == GPWN_AARCH64_LEGACYHOOK)) {
-        // legacy hook
-        if (!write_mem(handle->trampoline_addr,
-                mem_buffer, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
-            munmap(handle->trampoline_addr, page_size);
-            free(handle);
-            return 0;
-        }
-        if (!arm64_detour(
-            (uintptr_t)(handle->trampoline_addr + AARCH64_LEGACY_HOOKBYTES_LEN),
-            (uintptr_t)(address + AARCH64_LEGACY_HOOKBYTES_LEN),
-            AARCH64_LEGACY_HOOKBYTES_LEN)
-        ) {
-            // fputs("arm64_detour() failed.\n", stderr);
-            munmap(handle->trampoline_addr, page_size);
-            free(handle);
-            return 0;
-        }
+        relocate_prologue(
+            handle->trampoline_addr,
+            address,
+            AARCH64_LEGACY_HOOKBYTES_LEN / 4
+        );
+        mprotect(handle->trampoline_addr, page_size, PROT_EXEC | PROT_READ);
+        __builtin___clear_cache(
+            (char*)handle->trampoline_addr,
+            (char*)handle->trampoline_addr + page_size
+        );
         if (!arm64_detour((uintptr_t)address,
                 (uintptr_t)fake, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm64_detour() failed.\n", stderr);
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
-        }
+                }
         handle->flags |= GPWN_AARCH64_LEGACYHOOK;
         *original_func = handle->trampoline_addr;
         return handle;

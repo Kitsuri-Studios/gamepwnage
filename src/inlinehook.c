@@ -411,11 +411,15 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         return handle;
     }
     if ((!flags || (flags & GPWN_AARCH64_LEGACYHOOK) == GPWN_AARCH64_LEGACYHOOK)) {
-        relocate_prologue(
+        if(!relocate_prologue(
             handle->trampoline_addr,
             address,
             AARCH64_LEGACY_HOOKBYTES_LEN / 4
-        );
+        )) {
+            munmap(handle->trampoline_addr, page_size);
+            free(handle);
+            return 0;
+        }
         mprotect(handle->trampoline_addr, page_size, PROT_EXEC | PROT_READ);
         __builtin___clear_cache(
             (char*)handle->trampoline_addr,

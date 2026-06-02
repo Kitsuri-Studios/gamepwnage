@@ -17,22 +17,28 @@
 #endif
 #endif
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define GPWN_HOOK_SAVE_MAX 64 /* max bytes saved for unhook */
+
 typedef struct {
-    void *address;          // where to place hook
-    void *fake;             // the fake function
-    void *trampoline_addr;  // allocated address to place the copied bytes
-    size_t rbyte_len;       // replaced byte length
-    int flags;              // flags
+    void *address;          /* where to place hook */
+    void *fake;             /* the fake function */
+    void *trampoline_addr;  /* allocated trampoline */
+    size_t rbyte_len;       /* replaced byte length */
+    int flags;              /* hook type flags */
+    uint8_t saved[GPWN_HOOK_SAVE_MAX]; /* original bytes at address */
+    size_t saved_len;       /* length of saved bytes */
 } hook_handle;
 
 #if defined(__aarch64__)
-#define GPWN_AARCH64_LEGACYHOOK 0x1 /* 5 instructions, 20 bytes */
+#define GPWN_AARCH64_LEGACYHOOK 0x1 /* reloc trampoline, 20-64 byte steal */
 #define GPWN_AARCH64_MICROHOOK  0x2 /* 3 instructions, 12 bytes */
 #define GPWN_AARCH64_NANOHOOK   0x3 /* 1 instructions, 4 bytes  */
 #elif defined(__arm__)

@@ -229,7 +229,8 @@ GPWN_BKND size_t parse_sigpattern(const char *in_pattern,
 
     size_t head = 0;
     int nibble = 0;
-    for(size_t i = 0; i < strlen(in_pattern); i++) {
+    size_t pat_len = strlen(in_pattern);
+    for(size_t i = 0; i < pat_len; i++) {
         if(isxdigit(in_pattern[i])) {
             if(!nibble) {
                 (*sigbyte)[head] |= hextonib(in_pattern[i]) << 4;
@@ -278,8 +279,12 @@ GPWN_BKND size_t search_sigpattern(byte *data, size_t data_len,
 // __attribute__((optimize("O2")))
 GPWN_BKND size_t search_sigpattern4(uint32_t *data, size_t data_len,
     uint32_t *sigbyte, uint32_t *mask, size_t sig_len) {
+    if(sig_len == 0 || data_len < sig_len)
+        return (size_t)-1;
     data_len /= 4;
     sig_len /= 4;
+    if(sig_len == 0 || data_len < sig_len)
+        return (size_t)-1;
     for(size_t i = 0; i <= (data_len - sig_len); i++) {
         for(size_t j = 0; j < sig_len; j++) {
             if((data[i+j] & mask[j]) != (sigbyte[j] & mask[j]))
@@ -319,80 +324,137 @@ static inline char cmp128(uint64x2_t *data, uint64x2_t *sig, uint64x2_t *mask) {
 }
 #endif
 
-// 1 byte hybrid precision scanner
-// __attribute__((optimize("O2")))
-GPWN_BKND size_t search_sigpattern_hybrid(byte *data, size_t data_len,
-    byte *sigbyte, byte *mask, size_t sig_len, size_t block_size) {
-    if(block_size == 0)
-        return -1;
-    for(size_t i = 0; i <= (data_len - sig_len); i+=block_size) {
-        for(size_t j = 0; j < sig_len;) {
+typedef struct {
+    size_t anchor_idx;
+    size_t right_idx;
+    byte anchor_byte;
+    int has_anchor;
+    int use_bmh;
+    uint8_t bmh_skip[256];
+} sigscan_ctx;
+
+static void sigscan_ctx_init(sigscan_ctx *ctx, const byte *sig, const byte *mask,
+    size_t sig_len) {
+    ctx->has_anchor = 0;
+    ctx->use_bmh = 0;
+    ctx->anchor_idx = 0;
+    ctx->right_idx = 0;
+    ctx->anchor_byte = 0;
+    if(!sig_len)
+        return;
+    size_t fixed = 0;
+    for(size_t i = 0; i < sig_len; i++) {
+        if(mask[i] != 0xff)
+            continue;
+        if(!ctx->has_anchor) {
+            ctx->has_anchor = 1;
+            ctx->anchor_idx = i;
+            ctx->anchor_byte = sig[i];
+        }
+        ctx->right_idx = i;
+        fixed++;
+    }
+    if(fixed < 2 || sig_len < 4)
+        return;
+    uint8_t def = (sig_len > 255) ? 255 : (uint8_t)sig_len;
+    for(int i = 0; i < 256; i++)
+        ctx->bmh_skip[i] = def;
+    for(size_t i = 0; i < sig_len - 1; i++) {
+        if(mask[i] == 0xff)
+            ctx->bmh_skip[sig[i]] = (uint8_t)(sig_len - 1 - i);
+    }
+    ctx->use_bmh = 1;
+}
+
+static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,
+    size_t sig_len) {
+    size_t j = 0;
 #if defined(USING_AVX2)
-            if((sig_len - j) >= 32) {
-                // 8 byte alignment
-                if(
-                    !cmp256(
-                        (__m256i*) (data + i + j),
-                        (__m256i*) (sigbyte + j),
-                        (__m256i*) (mask + j)
-                    )
-                )
-                    break;
-                j+=32;
-            } else if((sig_len - j) >= 16) {
-                // 8 byte alignment
-                if(
-                    !cmp128(
-                        (__m128i*) (data + i + j),
-                        (__m128i*) (sigbyte + j),
-                        (__m128i*) (mask + j)
-                    )
-                )
-                    break;
-                j+=16;
-            } else
+    for(; j + 32 <= sig_len; j += 32) {
+        if(!cmp256(
+                (__m256i*)(data + j),
+                (__m256i*)(sigbyte + j),
+                (__m256i*)(mask + j)))
+            return 0;
+    }
+    for(; j + 16 <= sig_len; j += 16) {
+        if(!cmp128(
+                (__m128i*)(data + j),
+                (__m128i*)(sigbyte + j),
+                (__m128i*)(mask + j)))
+            return 0;
+    }
 #elif defined(USING_NEON)
-            if((sig_len - j) >= 16) {
-                // 8 byte alignment
-                if(
-                    !cmp128(
-                        (uint64x2_t*) (data + i + j),
-                        (uint64x2_t*) (sigbyte + j),
-                        (uint64x2_t*) (mask + j)
-                    )
-                )
-                    break;
-                j+=16;
-            } else
+    for(; j + 16 <= sig_len; j += 16) {
+        if(!cmp128(
+                (uint64x2_t*)(data + j),
+                (uint64x2_t*)(sigbyte + j),
+                (uint64x2_t*)(mask + j)))
+            return 0;
+    }
 #endif
 #ifdef __LP64__
-            if((sig_len - j) >= 8) {
-                // 8 byte alignment
-                if(
-                    (*(uint64_t*)((size_t)data + i + j) & *((uint64_t*)((size_t)mask + j)))
-                    != *(uint64_t*)((size_t)sigbyte + j)
-                )
-                    break;
-                j+=8;
-            } else
-#endif
-            if((sig_len - j) >= 4) {
-                // 4 byte alignment
-                if(
-                    (*(uint32_t*)((size_t)data + i + j) & *((uint32_t*)((size_t)mask + j)))
-                    != *(uint32_t*)((size_t)sigbyte + j)
-                )
-                    break;
-                j+=4;
-            } else {
-                if((data[i+j] & mask[j]) != sigbyte[j])
-                    break;
-                j+=1;
-            }
-            if(j == sig_len) {
-                return i;
-            }
-        }
+    for(; j + 8 <= sig_len; j += 8) {
+        if((*(uint64_t*)(data + j) & *(uint64_t*)(mask + j))
+            != *(uint64_t*)(sigbyte + j))
+            return 0;
     }
-    return -1;
+#endif
+    for(; j + 4 <= sig_len; j += 4) {
+        if((*(uint32_t*)(data + j) & *(uint32_t*)(mask + j))
+            != *(uint32_t*)(sigbyte + j))
+            return 0;
+    }
+    for(; j < sig_len; j++) {
+        if((data[j] & mask[j]) != (sigbyte[j] & mask[j]))
+            return 0;
+    }
+    return 1;
+}
+
+static size_t sigscan_bmh_shift(const sigscan_ctx *ctx, const byte *data,
+    size_t off) {
+    size_t shift = ctx->bmh_skip[data[off + ctx->right_idx]];
+    return shift ? shift : 1;
+}
+
+GPWN_BKND size_t search_sigpattern_hybrid(byte *data, size_t data_len,
+    byte *sigbyte, byte *mask, size_t sig_len, size_t block_size) {
+    if(block_size == 0 || sig_len == 0 || data_len < sig_len)
+        return (size_t)-1;
+
+    sigscan_ctx ctx;
+    sigscan_ctx_init(&ctx, sigbyte, mask, sig_len);
+
+    const byte *end = data + data_len - sig_len + 1;
+
+    if(ctx.has_anchor) {
+        const byte *p = data;
+        while(p < end) {
+            const byte *hit = memchr(p, ctx.anchor_byte, (size_t)(end - p));
+            if(!hit)
+                break;
+            p = hit;
+            size_t off = (size_t)(p - data) - ctx.anchor_idx;
+            if(off + sig_len > data_len)
+                break;
+            if(block_size > 1 && (off % block_size) != 0) {
+                p++;
+                continue;
+            }
+            if(sig_matches(data + off, sigbyte, mask, sig_len))
+                return off;
+            if(ctx.use_bmh)
+                p = data + off + sigscan_bmh_shift(&ctx, data, off);
+            else
+                p++;
+        }
+        return (size_t)-1;
+    }
+
+    for(size_t i = 0; i <= data_len - sig_len; i += block_size) {
+        if(sig_matches(data + i, sigbyte, mask, sig_len))
+            return i;
+    }
+    return (size_t)-1;
 }

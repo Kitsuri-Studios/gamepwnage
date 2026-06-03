@@ -333,6 +333,22 @@ typedef struct {
     uint8_t bmh_skip[256];
 } sigscan_ctx;
 
+static int sig_mask_run_full(const byte *mask, size_t j, size_t n) {
+    for(size_t k = 0; k < n; k++) {
+        if(mask[j + k] != 0xff)
+            return 0;
+    }
+    return 1;
+}
+
+static int sig_has_partial_mask(const byte *mask, size_t sig_len) {
+    for(size_t i = 0; i < sig_len; i++) {
+        if(mask[i] != 0 && mask[i] != 0xff)
+            return 1;
+    }
+    return 0;
+}
+
 static void sigscan_ctx_init(sigscan_ctx *ctx, const byte *sig, const byte *mask,
     size_t sig_len) {
     ctx->has_anchor = 0;
@@ -354,6 +370,8 @@ static void sigscan_ctx_init(sigscan_ctx *ctx, const byte *sig, const byte *mask
         ctx->right_idx = i;
         fixed++;
     }
+    if(sig_has_partial_mask(mask, sig_len))
+        return;
     if(fixed < 2 || sig_len < 4)
         return;
     uint8_t def = (sig_len > 255) ? 255 : (uint8_t)sig_len;
@@ -371,6 +389,8 @@ static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,
     size_t j = 0;
 #if defined(USING_AVX2)
     for(; j + 32 <= sig_len; j += 32) {
+        if(!sig_mask_run_full(mask, j, 32))
+            break;
         if(!cmp256(
                 (__m256i*)(data + j),
                 (__m256i*)(sigbyte + j),
@@ -378,6 +398,8 @@ static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,
             return 0;
     }
     for(; j + 16 <= sig_len; j += 16) {
+        if(!sig_mask_run_full(mask, j, 16))
+            break;
         if(!cmp128(
                 (__m128i*)(data + j),
                 (__m128i*)(sigbyte + j),
@@ -386,6 +408,8 @@ static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,
     }
 #elif defined(USING_NEON)
     for(; j + 16 <= sig_len; j += 16) {
+        if(!sig_mask_run_full(mask, j, 16))
+            break;
         if(!cmp128(
                 (uint64x2_t*)(data + j),
                 (uint64x2_t*)(sigbyte + j),
@@ -395,14 +419,18 @@ static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,
 #endif
 #ifdef __LP64__
     for(; j + 8 <= sig_len; j += 8) {
+        if(!sig_mask_run_full(mask, j, 8))
+            break;
         if((*(uint64_t*)(data + j) & *(uint64_t*)(mask + j))
-            != *(uint64_t*)(sigbyte + j))
+            != (*(uint64_t*)(sigbyte + j) & *(uint64_t*)(mask + j)))
             return 0;
     }
 #endif
     for(; j + 4 <= sig_len; j += 4) {
+        if(!sig_mask_run_full(mask, j, 4))
+            break;
         if((*(uint32_t*)(data + j) & *(uint32_t*)(mask + j))
-            != *(uint32_t*)(sigbyte + j))
+            != (*(uint32_t*)(sigbyte + j) & *(uint32_t*)(mask + j)))
             return 0;
     }
     for(; j < sig_len; j++) {
@@ -444,9 +472,10 @@ GPWN_BKND size_t search_sigpattern_hybrid(byte *data, size_t data_len,
             }
             if(sig_matches(data + off, sigbyte, mask, sig_len))
                 return off;
-            if(ctx.use_bmh)
-                p = data + off + sigscan_bmh_shift(&ctx, data, off);
-            else
+            if(ctx.use_bmh) {
+                const byte *next = data + off + sigscan_bmh_shift(&ctx, data, off);
+                p = next > hit ? next : hit + 1;
+            } else
                 p++;
         }
         return (size_t)-1;

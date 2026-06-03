@@ -1,12 +1,13 @@
-/*
- gamepwnage -- Cross Platform Game Hacking API(s)
+/**
+ Gamepwnage -- Cross Platform Game Hacking API(s)
+
  Copyright (c) 2024-2025 bitware. All rights reserved.
+ Copyright (c) 2026-ONWARDS Kitsuri Studio. All rights reserved.
 
- "gamepwnage" is released under the New BSD license (see LICENSE.txt).
+ "Gamepwnage" is released under the New BSD license (see LICENSE.txt).
  Go to the project home page for more info:
- https://github.com/bitwaree/gamepwnage
+https://github.com/Kitsuri-Studios/gamepwnage
 */
-
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>

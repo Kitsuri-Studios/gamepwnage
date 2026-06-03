@@ -80,51 +80,6 @@ static inline bool reloc_emit_literal_load(uint32_t** op, uint32_t* end,
     return reloc_emit_u64(op, end, (uint64_t)pool_addr);
 }
 
-/* min-max byte steal; extends past trailing adrp */
-static inline size_t aarch64_steal_byte_count(const uint32_t *insns, size_t insn_words,
-    size_t min_bytes, size_t max_bytes) {
-    if(!insns || min_bytes == 0 || max_bytes < min_bytes
-        || (min_bytes & 3u) || (max_bytes & 3u))
-        return 0;
-    size_t max_n = max_bytes / 4u;
-    if(insn_words < max_n)
-        max_n = insn_words;
-    size_t n = 0;
-    while(n < max_n) {
-        n++;
-        if(n * 4u >= min_bytes) {
-            uint32_t last = insns[n - 1u];
-            if((last & 0x9f000000u) != 0x90000000u)
-                break;
-        }
-    }
-    if(n * 4u < min_bytes)
-        return 0;
-    return n * 4u;
-}
-
-static inline bool aarch64_insn_is_pc_relative(uint32_t insn) {
-    if((insn & 0xfc000000u) == 0x14000000u)
-        return true;
-    if((insn & 0xfc000000u) == 0x94000000u)
-        return true;
-    if((insn & 0xff000010u) == 0x54000000u)
-        return true;
-    if((insn & 0xff000010u) == 0x56000000u)
-        return true;
-    if((insn & 0x7e000000u) == 0x34000000u)
-        return true;
-    if((insn & 0x7e000000u) == 0x36000000u)
-        return true;
-    if((insn & 0x9f000000u) == 0x90000000u)
-        return true;
-    if((insn & 0x9f000000u) == 0x10000000u)
-        return true;
-    if((insn & 0x3b000000u) == 0x18000000u)
-        return true;
-    return false;
-}
-
 static int reloc_insn(uint32_t** op, uint32_t* end, uintptr_t pc, uint32_t insn) {
 
     if((insn & 0xfc000000u) == 0x14000000u) {

@@ -48,12 +48,10 @@ static inline void hook_save_bytes(hook_handle *handle, const uint8_t *src, size
 #endif
 
 #ifdef __aarch64__
-#define AARCH64_LEGACY_HOOKBYTES_MIN 20 /* detour + min steal */
-#define AARCH64_LEGACY_HOOKBYTES_LEN 20 /* trampoline slot layout */
-#define AARCH64_MAX_STEAL            64 /* max dynamic steal */
+#define AARCH64_LEGACY_HOOKBYTES_LEN 20 /* 5 instructions */
 #define AARCH64_MICRO_HOOKBYTES_LEN  12 /* 3 instructions */
 #define AARCH64_NANO_HOOKBYTES_LEN    4 /* 1 instruction */
-#define MAX_BUFFERLEN AARCH64_MAX_STEAL
+#define MAX_BUFFERLEN AARCH64_LEGACY_HOOKBYTES_LEN
 
 static inline uint32_t encode_adrp(int64_t offset) {
     // 32 bits signed
@@ -425,21 +423,11 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         return handle;
     }
     if ((!flags || (flags & GPWN_AARCH64_LEGACYHOOK) == GPWN_AARCH64_LEGACYHOOK)) {
-        size_t steal = aarch64_steal_byte_count(
-            (const uint32_t*)mem_buffer,
-            MAX_BUFFERLEN / 4u,
-            AARCH64_LEGACY_HOOKBYTES_MIN,
-            AARCH64_MAX_STEAL);
-        if(!steal) {
-            munmap(handle->trampoline_addr, page_size);
-            free(handle);
-            return 0;
-        }
-        hook_save_bytes(handle, mem_buffer, steal);
+        hook_save_bytes(handle, mem_buffer, AARCH64_LEGACY_HOOKBYTES_LEN);
         if(!relocate_prologue(
             handle->trampoline_addr,
             address,
-            steal / 4u
+            AARCH64_LEGACY_HOOKBYTES_LEN / 4u
         )) {
             munmap(handle->trampoline_addr, page_size);
             free(handle);
@@ -451,7 +439,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
             (char*)handle->trampoline_addr + page_size
         );
         if (!arm64_detour((uintptr_t)address,
-                (uintptr_t)fake, steal)) {
+                (uintptr_t)fake, AARCH64_LEGACY_HOOKBYTES_LEN)) {
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;

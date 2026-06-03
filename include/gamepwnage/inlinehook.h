@@ -38,7 +38,7 @@ typedef struct {
 } hook_handle;
 
 #if defined(__aarch64__)
-#define GPWN_AARCH64_LEGACYHOOK 0x1 /* reloc trampoline, 20-64 byte steal */
+#define GPWN_AARCH64_LEGACYHOOK 0x1 /* 5 instructions, 20 bytes */
 #define GPWN_AARCH64_MICROHOOK  0x2 /* 3 instructions, 12 bytes */
 #define GPWN_AARCH64_NANOHOOK   0x3 /* 1 instructions, 4 bytes  */
 #elif defined(__arm__)

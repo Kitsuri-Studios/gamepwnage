@@ -111,7 +111,26 @@ static uintptr_t gpwn_find_ptr_ref(gpwn_libscan_ctx *ctx, uintptr_t target) {
     return 0;
 }
 
+static void **gpwn_scan_vftable_from_zts(gpwn_libscan_ctx *ctx, const char *zts_name) {
+    uintptr_t zts = gpwn_find_zts(ctx, zts_name);
+    if (!zts)
+        return 0;
+
+    uintptr_t zts_ref = gpwn_find_ptr_ref(ctx, zts);
+    if (!zts_ref)
+        return 0;
+
+    uintptr_t zti = zts_ref - sizeof(uintptr_t);
+
+    uintptr_t zti_ref = gpwn_find_ptr_ref(ctx, zti);
+    if (!zti_ref)
+        return 0;
+
+    return (void **)(zti_ref + sizeof(uintptr_t));
+}
+
 static void **gpwn_scan_vftable(const char *libname, const char *classname) {
+    char abi_name[4096];
     gpwn_libscan_ctx ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.libname = libname;
@@ -119,27 +138,15 @@ static void **gpwn_scan_vftable(const char *libname, const char *classname) {
     if (!dl_iterate_phdr(gpwn_vft_iterate_cb, &ctx) || !ctx.found)
         return 0;
 
-    uintptr_t zts = gpwn_find_zts(&ctx, classname);
-    if (!zts)
+    void **vt = gpwn_scan_vftable_from_zts(&ctx, classname);
+    if (vt)
+        return vt;
+
+    int written = snprintf(abi_name, sizeof(abi_name), "%zu%s", strlen(classname), classname);
+    if (written < 0 || (size_t)written >= sizeof(abi_name))
         return 0;
 
-    uintptr_t zts_ref = gpwn_find_ptr_ref(&ctx, zts);
-    if (!zts_ref)
-        return 0;
-
-    uintptr_t zti = zts_ref - sizeof(uintptr_t);
-
-    uintptr_t zti_ref = gpwn_find_ptr_ref(&ctx, zti);
-    if (!zti_ref)
-        return 0;
-
-    void **vt = (void **)(zti_ref + sizeof(uintptr_t));
-    uintptr_t *meta = (uintptr_t *)vt;
-
- /* if (meta[-2] != 0)
-        return 0; */
-
-    return vt;
+    return gpwn_scan_vftable_from_zts(&ctx, abi_name);
 }
 
 GPWNAPI void **get_vftable_ptr(const char *libname, const char *classname) {

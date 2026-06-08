@@ -69,7 +69,7 @@ add_library(gamepwnage::gamepwnage ALIAS gamepwnage)
 set_target_properties(gamepwnage PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
-    C_EXTENSIONS OFF
+    C_EXTENSIONS ON
     POSITION_INDEPENDENT_CODE ON
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}

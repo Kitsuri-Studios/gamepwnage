@@ -19,7 +19,7 @@ BUILD_DIR    := build
 LIB_NAME     := gamepwnage
 
 INC_DIR      := include/gamepwnage
-CFLAGS       := -std=c11 -fPIC -I$(INC_DIR) -DGPWN_USING_BUILD_CONFIG
+CFLAGS       := -std=gnu11 -fPIC -I$(INC_DIR) -DGPWN_USING_BUILD_CONFIG
 LDFLAGS      :=
 LDLIBS       :=
 

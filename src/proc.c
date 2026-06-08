@@ -93,7 +93,7 @@ GPWNAPI void *get_module_addr(
             prot |= PROT_READ;
         if(_permissions[1] == 'w')
             prot |= PROT_WRITE;
-        if(_permissions[3] == 'x')
+        if(_permissions[2] == 'x')
             prot |= PROT_EXEC;
         for(unsigned int i = 0; i < map_count; i++) {
             if(maps[i].prot == prot) {
@@ -133,7 +133,7 @@ GPWNAPI void* find_unmapped(void *target, size_t size) {
         return 0;
     }
     unsigned int rd_map_count = get_proc_map(0, maps, map_count);
-    unsigned int target_index = -1;
+    unsigned int target_index = rd_map_count;
     // get the target's index
     for(unsigned int i = 0; i < rd_map_count; i++) {
         if((uintptr_t) target >= maps[i].start &&
@@ -143,28 +143,29 @@ GPWNAPI void* find_unmapped(void *target, size_t size) {
             break;
         }
     }
-    if(target_index == -1) {
+    if(target_index == rd_map_count) {
         // target map not found
         free(maps);
         return 0;
     }
     uintptr_t nearest_pos = 0, nearest_neg = 0;
-    if(target_index < rd_map_count) {
-        // find positive
-        for(unsigned int i = target_index; i < rd_map_count; i++) {
-            if(maps[i+1].start - maps[i].end >= size) {
-                nearest_pos = maps[i].end;
-                break;
-            }
+    // find positive
+    for(unsigned int i = target_index; i + 1 < rd_map_count; i++) {
+        if(maps[i + 1].start >= maps[i].end &&
+            maps[i + 1].start - maps[i].end >= size
+        ) {
+            nearest_pos = maps[i].end;
+            break;
         }
-    } else {
-        nearest_pos = maps[target_index].end;
     }
     if(target_index > 0) {
         // find negative
-        for(unsigned int i = target_index - 1; i == 0; i--) {
-            if(maps[i+1].start - maps[i].end >= size) {
-                nearest_neg = maps[i].end;
+        for(unsigned int i = target_index; i > 0; i--) {
+            unsigned int prev = i - 1;
+            if(maps[i].start >= maps[prev].end &&
+                maps[i].start - maps[prev].end >= size
+            ) {
+                nearest_neg = maps[i].start - size;
                 break;
             }
         }
@@ -172,6 +173,10 @@ GPWNAPI void* find_unmapped(void *target, size_t size) {
         nearest_neg = maps[target_index].start - size;
     }
     free(maps);
+    if(!nearest_pos)
+        return (void*) nearest_neg;
+    if(!nearest_neg)
+        return (void*) nearest_pos;
     if(nearest_pos - (uintptr_t) target <= (uintptr_t) target - nearest_neg)
     {
         return (void*) nearest_pos;

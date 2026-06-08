@@ -66,7 +66,11 @@ int __attribute__((visibility(VISIBILITY_FLAG))) GetExePath(char *directory, cha
     {
         exepath[len] = '\0';
         exepath_dup = strdup(exepath);
-        if(!directory) {
+        if(!exepath_dup) {
+            free(exepath);
+            return 0;
+        }
+        if(directory) {
             _directory = dirname(exepath);
             strcpy(directory, _directory);
             size_t dirlen = strlen(_directory);
@@ -74,7 +78,7 @@ int __attribute__((visibility(VISIBILITY_FLAG))) GetExePath(char *directory, cha
             directory[dirlen + 1] = '\0';
             dirlen++;
         }
-        if(!exename)
+        if(exename)
         {
             _exename = basename(exepath_dup);
             strcpy(exename, _exename);

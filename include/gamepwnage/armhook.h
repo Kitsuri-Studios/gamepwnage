@@ -18,6 +18,7 @@
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

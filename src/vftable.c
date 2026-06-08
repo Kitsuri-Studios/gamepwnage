@@ -7,6 +7,10 @@
  https://github.com/bitwaree/gamepwnage
  */
 
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #ifdef GPWN_USING_BUILD_CONFIG
 #include "config.h"
 #else

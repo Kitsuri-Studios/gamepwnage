@@ -69,7 +69,7 @@ add_library(gamepwnage::gamepwnage ALIAS gamepwnage)
 set_target_properties(gamepwnage PROPERTIES
     C_STANDARD 11
     C_STANDARD_REQUIRED ON
-    C_EXTENSIONS OFF
+    C_EXTENSIONS ON
     POSITION_INDEPENDENT_CODE ON
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
@@ -102,6 +102,10 @@ if(GAMEPWNAGE_ENABLE_SIMD)
         target_compile_definitions(gamepwnage PRIVATE USING_AVX2)
         target_compile_options(gamepwnage PRIVATE -mavx2)
     endif()
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID)
+    target_compile_definitions(gamepwnage PRIVATE _GNU_SOURCE)
 endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

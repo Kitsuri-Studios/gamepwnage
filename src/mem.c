@@ -37,7 +37,7 @@ GPWNAPI bool write_mem(void *dest, void *src, size_t len)
 {
    // Get the system page size
     size_t page_size = sysconf(_SC_PAGESIZE);
-    
+
     // Calculate the aligned address and size
     uintptr_t addr = (uintptr_t)dest;
     uintptr_t aligned_addr = addr & ~(page_size - 1);
@@ -78,7 +78,7 @@ GPWNAPI bool read_mem(void *dest, void *src, size_t len)
 {
    // Get the system page size
     size_t page_size = sysconf(_SC_PAGESIZE);
-    
+
     // Calculate the aligned address and size
     uintptr_t addr = (uintptr_t)src;
     uintptr_t aligned_addr = addr & ~(page_size - 1);
@@ -218,4 +218,92 @@ GPWNAPI void *mmap_near(void *hint, size_t size, int prot) {
         }
     }
     return allocated;
+}
+
+GPWNAPI bool gpwn_patch_nop(void *addr, size_t len) {
+    if (!addr || len == 0) {
+        return false;
+    }
+#if defined(__aarch64__)
+    if (len % 4 != 0 || ((uintptr_t)addr % 4) != 0) return false;
+#elif defined(__arm__)
+    bool is_thumb = ((uintptr_t)addr & 1) != 0;
+    void *patch_target = (void *)((uintptr_t)addr & ~1);
+    if (is_thumb) {
+        if (len % 2 != 0) return false;
+    } else {
+        if (len % 4 != 0 || ((uintptr_t)patch_target % 4) != 0) return false;
+    }
+#else
+    void *patch_target = addr;
+#endif
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    uintptr_t aligned_addr = (uintptr_t)addr & ~(page_size - 1);
+    size_t aligned_size = (((uintptr_t)addr + len + page_size - 1) & ~(page_size - 1)) - aligned_addr;
+    if (mprotect((void *)aligned_addr, aligned_size, PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
+        return false;
+    }
+#if defined(__aarch64__)
+    uint32_t nop_inst = 0xd503201f;
+    for (size_t i = 0; i < len / 4; i++) {
+        ((uint32_t *)addr)[i] = nop_inst;
+    }
+#elif defined(__arm__)
+    if (is_thumb) {
+        uint16_t nop_inst = 0x46c0;
+        for (size_t i = 0; i < len / 2; i++) {
+            ((uint16_t *)patch_target)[i] = nop_inst;
+        }
+    } else {
+        uint32_t nop_inst = 0xe1a00000;
+        for (size_t i = 0; i < len / 4; i++) {
+            ((uint32_t *)patch_target)[i] = nop_inst;
+        }
+    }
+#elif defined(__x86_64__) || defined(__amd64__) || defined(__i386__) || defined(__x86__)
+    memset(addr, 0x90, len);
+#else
+    (void)addr;
+    (void)len;
+#endif
+#if defined(__arm__) || defined(__aarch64__)
+    uintptr_t clean_start = (uintptr_t)addr & ~1;
+    __builtin___clear_cache((char *)clean_start, (char *)clean_start + len);
+#endif
+    mprotect((void *)aligned_addr, aligned_size, PROT_READ | PROT_EXEC);
+    return true;
+}
+
+GPWNAPI bool gpwn_patch_ret(void *addr) {
+    if (!addr) {
+        return false;
+    }
+#if defined(__aarch64__)
+    uint32_t ret_inst = 0xd65f03c0;
+    return gpwn_patch_nop(addr, sizeof(uint32_t)) ?
+           (memcpy(addr, &ret_inst, sizeof(uint32_t)), __builtin___clear_cache((char*)addr, (char*)addr + 4), true) : false;
+#elif defined(__arm__)
+    bool is_thumb = ((uintptr_t)addr & 1) != 0;
+    void *patch_target = (void *)((uintptr_t)addr & ~1);
+    if (is_thumb) {
+        uint16_t ret_inst = 0x4770;
+        return gpwn_patch_nop(addr, sizeof(uint16_t)) ?
+               (memcpy(patch_target, &ret_inst, sizeof(uint16_t)), __builtin___clear_cache((char*)patch_target, (char*)patch_target + 2), true) : false;
+    } else {
+        uint32_t ret_inst = 0xe12fff1e;
+        return gpwn_patch_nop(addr, sizeof(uint32_t)) ?
+               (memcpy(patch_target, &ret_inst, sizeof(uint32_t)), __builtin___clear_cache((char*)patch_target, (char*)patch_target + 4), true) : false;
+    }
+#elif defined(__x86_64__) || defined(__amd64__) || defined(__i386__) || defined(__x86__)
+    uint8_t ret_inst = 0xc3;
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    uintptr_t aligned_addr = (uintptr_t)addr & ~(page_size - 1);
+    mprotect((void *)aligned_addr, page_size, PROT_READ | PROT_WRITE | PROT_EXEC);
+    *(uint8_t *)addr = ret_inst;
+    mprotect((void *)aligned_addr, page_size, PROT_READ | PROT_EXEC);
+    return true;
+#else
+    (void)addr;
+    return false;
+#endif
 }

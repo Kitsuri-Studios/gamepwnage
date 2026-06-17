@@ -686,3 +686,7 @@ GPWNAPI bool rm_hook(hook_handle *handle) {
     free(handle);
     return 1;
 }
+
+GPWNAPI hook_handle* gpwn_raw_inline_hook(void *address, void *fake, void **original_func) {
+    return hook_addr(address, fake, original_func, 0);
+}

@@ -29,6 +29,7 @@ set(GAMEPWNAGE_SOURCES
     src/inlinehook.c
     src/mem.c
     src/memscan.c
+    src/multihook.c
     src/nop.c
     src/plthook.c
     src/proc.c
@@ -42,6 +43,7 @@ set(GAMEPWNAGE_HEADERS
     include/gamepwnage/inlinehook.h
     include/gamepwnage/mem.h
     include/gamepwnage/memscan.h
+    include/gamepwnage/multihook.h
     include/gamepwnage/nop.h
     include/gamepwnage/plthook.h
     include/gamepwnage/proc.h

@@ -47,6 +47,7 @@ typedef struct {
 #endif
 
 GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, int flags);
+GPWNAPI hook_handle* gpwn_raw_inline_hook(void *address, void *fake, void **original_func);
 GPWNAPI bool rm_hook(hook_handle *handle);
 
 #ifdef __cplusplus

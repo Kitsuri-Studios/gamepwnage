@@ -136,11 +136,86 @@ GPWNAPI uintptr_t get_addr(uintptr_t Baseaddr, uintptr_t offsets[], int TotalOff
 }
 GPWNAPI void *mmap_near(void *hint, size_t size, int prot) {
     size_t page_size = sysconf(_SC_PAGESIZE);
-    uintptr_t aligned_addr = (uintptr_t) hint & ~(page_size - 1);
-    size_t aligned_size = (((uintptr_t)hint + size + page_size - 1) &
-        ~(page_size - 1)) - aligned_addr;
-    uintptr_t nearby = ((uintptr_t) find_unmapped((void*) aligned_addr, aligned_size)
-        & ~(page_size - 1));
-    return mmap((void*) nearby, aligned_size, prot,
-        MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, -1, 0);
+    uintptr_t target = (uintptr_t)hint;
+    size = (size + page_size - 1) & ~(page_size - 1);
+    uintptr_t min_addr = (target > 128 * 1024 * 1024) ? (target - 128 * 1024 * 1024) : page_size;
+    uintptr_t max_addr = target + 128 * 1024 * 1024 - page_size;
+    FILE *fd = fopen("/proc/self/maps", "r");
+    if (!fd) {
+        return NULL;
+    }
+    char line[1024];
+    uintptr_t prev_end = 0;
+    void *allocated = NULL;
+    while (fgets(line, sizeof(line), fd) != NULL) {
+        uintptr_t start = 0, end = 0;
+        if (sscanf(line, "%lx-%lx", &start, &end) != 2) {
+            continue;
+        }
+        if (start > prev_end) {
+            uintptr_t overlap_start = (prev_end > min_addr) ? prev_end : min_addr;
+            uintptr_t overlap_end = (start < max_addr) ? start : max_addr;
+            overlap_start = (overlap_start + page_size - 1) & ~(page_size - 1);
+            overlap_end = overlap_end & ~(page_size - 1);
+            if (overlap_end > overlap_start && (overlap_end - overlap_start) >= size) {
+                uintptr_t candidate;
+                if (target <= overlap_start) {
+                    candidate = overlap_start;
+                } else if (target >= overlap_end) {
+                    candidate = overlap_end - size;
+                } else {
+                    candidate = target & ~(page_size - 1);
+                    if (candidate < overlap_start) {
+                        candidate = overlap_start;
+                    } else if (candidate + size > overlap_end) {
+                        candidate = overlap_end - size;
+                    }
+                }
+                void *addr = mmap((void*)candidate, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+                if (addr != MAP_FAILED) {
+                    uintptr_t addr_val = (uintptr_t)addr;
+                    int64_t diff = (int64_t)addr_val - (int64_t)target;
+                    if (diff >= -134217728 && diff <= 134217724) {
+                        allocated = addr;
+                        break;
+                    } else {
+                        munmap(addr, size);
+                    }
+                }
+            }
+        }
+        prev_end = end;
+    }
+    fclose(fd);
+    if (!allocated && max_addr > prev_end) {
+        uintptr_t overlap_start = (prev_end > min_addr) ? prev_end : min_addr;
+        overlap_start = (overlap_start + page_size - 1) & ~(page_size - 1);
+        uintptr_t overlap_end = max_addr & ~(page_size - 1);
+        if (overlap_end > overlap_start && (overlap_end - overlap_start) >= size) {
+            uintptr_t candidate = overlap_start;
+            void *addr = mmap((void*)candidate, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+            if (addr != MAP_FAILED) {
+                uintptr_t addr_val = (uintptr_t)addr;
+                int64_t diff = (int64_t)addr_val - (int64_t)target;
+                if (diff >= -134217728 && diff <= 134217724) {
+                    allocated = addr;
+                } else {
+                    munmap(addr, size);
+                }
+            }
+        }
+    }
+    if (!allocated) {
+        void *addr = mmap(hint, size, prot, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (addr != MAP_FAILED) {
+            uintptr_t addr_val = (uintptr_t)addr;
+            int64_t diff = (int64_t)addr_val - (int64_t)target;
+            if (diff >= -134217728 && diff <= 134217724) {
+                allocated = addr;
+            } else {
+                munmap(addr, size);
+            }
+        }
+    }
+    return allocated;
 }

@@ -394,6 +394,14 @@ static void sigscan_ctx_init(sigscan_ctx *ctx, const byte *sig, const byte *mask
             shift = 1;
         ctx->bmh_skip[sig[i]] = shift;
     }
+    size_t wildcard_shift = ctx->right_idx + 1;
+    for(size_t i = 0; i < ctx->right_idx; i++)
+        if(mask[i] == 0)
+            wildcard_shift = ctx->right_idx - i;
+    if(wildcard_shift < 255)
+        for(int i = 0; i < 256; i++)
+            if(ctx->bmh_skip[i] > wildcard_shift)
+                ctx->bmh_skip[i] = (uint8_t)wildcard_shift;
     ctx->use_bmh = 1;
 }
 static int sig_matches(const byte *data, const byte *sigbyte, const byte *mask,

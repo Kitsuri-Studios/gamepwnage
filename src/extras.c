@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include <sys/mman.h>
 #include <libgen.h>
@@ -36,7 +37,7 @@ int __attribute__((visibility(VISIBILITY_FLAG))) GetExePath(char *directory, cha
 
     // Retrieve the executable path
     if (sysctl(mib, 4, exepath, &path_size, NULL, 0) == -1) {
-        //perror("sysctl");
+        GPWN_LOG("sysctl: %s\n", strerror(errno));
         free(exepath);
         return 0;
     }
@@ -86,7 +87,7 @@ int __attribute__((visibility(VISIBILITY_FLAG))) GetExePath(char *directory, cha
     }
     else
     {
-        perror("readlink() error: can't fetch exe path");
+        GPWN_LOG("readlink() error: can't fetch exe path: %s\n", strerror(errno));
         free(exepath);
         return 0;
     }

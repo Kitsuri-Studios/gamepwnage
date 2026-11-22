@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/mman.h>
 
 #include "mem.h"
@@ -301,7 +302,7 @@ static inline size_t x86_instruction_length(const uint8_t *code, size_t max_len,
 GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, int flags) {
     hook_handle *handle = malloc(sizeof(hook_handle));
     if(!handle) {
-        // perror("malloc() failed.");
+        GPWN_LOG("hook_addr() error: malloc() failed.: %s\n", strerror(errno));
         return 0;
     }
     handle->address = address;
@@ -313,14 +314,14 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
     // allocate the trampoline
     handle->trampoline_addr = mmap_near(aligned_addr, page_size, PROT_EXEC | PROT_READ);
     if(handle->trampoline_addr == MAP_FAILED) {
-        // perror("mmap() failed.");
+        GPWN_LOG("hook_addr() error: mmap() failed.: %s\n", strerror(errno));
         free(handle);
         return 0;
     }
     // read the bytes
     uint8_t mem_buffer[MAX_BUFFERLEN];
     if(!read_mem(mem_buffer, address, MAX_BUFFERLEN)) {
-        // fputs("read_mem() failed.\n", stderr);
+        GPWN_LOG("hook_addr() error: read_mem() failed.\n");
         munmap(handle->trampoline_addr, page_size);
         free(handle);
         return 0;
@@ -334,30 +335,30 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         // nano hook
         if(!arm64_detour((uintptr_t) handle->trampoline_addr, (uintptr_t) fake,
                 AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm64_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm64_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!write_mem(handle->trampoline_addr + AARCH64_LEGACY_HOOKBYTES_LEN,
                 mem_buffer, AARCH64_NANO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!arm64_detour( (uintptr_t)(handle->trampoline_addr +
                 AARCH64_LEGACY_HOOKBYTES_LEN + AARCH64_NANO_HOOKBYTES_LEN),
-            (uintptr_t) (address + AARCH64_NANO_HOOKBYTES_LEN),
+                (uintptr_t) (address + AARCH64_NANO_HOOKBYTES_LEN),
             AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm64_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm64_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         uint32_t b_opcode = encode_b(handle->trampoline_addr - address);
         if(!write_mem(address, &b_opcode, 4)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -378,29 +379,29 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         hook_bytes[1] = 0xf9400231;
         hook_bytes[2] = 0xd61f0220;
         if(!write_mem(handle->trampoline_addr, &fake, 8)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!write_mem(handle->trampoline_addr + 8, mem_buffer,
                 AARCH64_MICRO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!arm64_detour(
-            (uintptr_t) (handle->trampoline_addr + 8 + AARCH64_MICRO_HOOKBYTES_LEN),
-            (uintptr_t) (address + AARCH64_MICRO_HOOKBYTES_LEN),
-            AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm64_detour() failed.\n", stderr);
+                (uintptr_t) (handle->trampoline_addr + 8 + AARCH64_MICRO_HOOKBYTES_LEN),
+                (uintptr_t) (address + AARCH64_MICRO_HOOKBYTES_LEN),
+                AARCH64_LEGACY_HOOKBYTES_LEN)) {
+            GPWN_LOG("hook_addr() error: arm64_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!write_mem(address, &hook_bytes, AARCH64_MICRO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -413,7 +414,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         // legacy hook
         if (!write_mem(handle->trampoline_addr,
                 mem_buffer, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -423,14 +424,14 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
             (uintptr_t)(address + AARCH64_LEGACY_HOOKBYTES_LEN),
             AARCH64_LEGACY_HOOKBYTES_LEN)
         ) {
-            // fputs("arm64_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm64_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if (!arm64_detour((uintptr_t)address,
                 (uintptr_t)fake, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm64_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm64_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -448,14 +449,14 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         // nano hook
         if(!arm32_detour((uintptr_t) handle->trampoline_addr, (uintptr_t) fake,
                 ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm32_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm32_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!write_mem(handle->trampoline_addr + ARM_LEGACY_HOOKBYTES_LEN,
                 mem_buffer, ARM_NANO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -464,14 +465,14 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
                 ARM_LEGACY_HOOKBYTES_LEN + ARM_NANO_HOOKBYTES_LEN),
                 (uintptr_t)(address + ARM_NANO_HOOKBYTES_LEN),
                 ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm32_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm32_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         uint32_t b_opcode = encode_b(handle->trampoline_addr - address);
         if(!write_mem(address, &b_opcode, 4)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -483,7 +484,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
     if ((!flags || (flags & GPWN_ARM_LEGACYHOOK) == GPWN_ARM_LEGACYHOOK)) {
         if(!write_mem(handle->trampoline_addr,
                 mem_buffer, ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -492,14 +493,14 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
                 (uintptr_t)handle->trampoline_addr + ARM_LEGACY_HOOKBYTES_LEN,
                 (uintptr_t)address + ARM_LEGACY_HOOKBYTES_LEN,
                 ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm32_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm32_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if (!arm32_detour((uintptr_t)address, (uintptr_t)fake,
                 ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("arm32_detour() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: arm32_detour() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -514,7 +515,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
         (address - handle->trampoline_addr >  2147483647) ||
         (address - handle->trampoline_addr < -2147483648)
     ) {
-        // fputs("memory isn't in range, hook failed.\n", stderr);
+        GPWN_LOG("hook_addr() error: memory isn't in range, hook failed.\n");
         munmap(handle->trampoline_addr, page_size);
         free(handle);
         return 0;
@@ -535,19 +536,19 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
 
         handle->flags = GPWN_X86_SHORTHOOK;
         if(!write_mem((void*) handle->trampoline_addr, (void*) mem_buffer, inst_len)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!hook_x86((void*) (handle->trampoline_addr + inst_len), (void*) (address + inst_len), 5)) {
-            // fputs("hook_x86() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: hook_x86() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!hook_x86(address, fake, inst_len)) {
-            // fputs("hook_x86() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: hook_x86() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -565,19 +566,19 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
 
         handle->flags = GPWN_X86_64_LONGHOOK;
         if(!write_mem(handle->trampoline_addr, (void*) &fake, sizeof(void*))) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!write_mem(handle->trampoline_addr+sizeof(void*), mem_buffer, inst_len)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: write_mem() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
         }
         if(!hook_x86(handle->trampoline_addr+sizeof(void*)+inst_len, address+inst_len, 5)) {
-            // fputs("hook_x86() failed.\n", stderr);
+            GPWN_LOG("hook_addr() error: hook_x86() failed.\n");
             munmap(handle->trampoline_addr, page_size);
             free(handle);
             return 0;
@@ -597,6 +598,7 @@ GPWNAPI hook_handle* hook_addr(void *address, void *fake, void **original_func, 
     return 0;
 }
 
+
 GPWNAPI bool rm_hook(hook_handle *handle) {
     if(!handle) {
         return 0;
@@ -607,31 +609,31 @@ GPWNAPI bool rm_hook(hook_handle *handle) {
         if(!read_mem(mem_buffer,
             handle->trampoline_addr + AARCH64_LEGACY_HOOKBYTES_LEN,
             AARCH64_NANO_HOOKBYTES_LEN)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, AARCH64_NANO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
     else if((handle->flags & GPWN_AARCH64_MICROHOOK) == GPWN_AARCH64_MICROHOOK) {
         if(!read_mem(mem_buffer, handle->trampoline_addr + 8, AARCH64_MICRO_HOOKBYTES_LEN)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, AARCH64_MICRO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
     else if((handle->flags & GPWN_AARCH64_LEGACYHOOK) == GPWN_AARCH64_LEGACYHOOK) {
         if(!read_mem(mem_buffer, handle->trampoline_addr, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, AARCH64_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
@@ -640,43 +642,43 @@ GPWNAPI bool rm_hook(hook_handle *handle) {
         if(!read_mem(mem_buffer,
             handle->trampoline_addr + ARM_LEGACY_HOOKBYTES_LEN,
             ARM_NANO_HOOKBYTES_LEN)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, ARM_NANO_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
     else if((handle->flags & GPWN_ARM_LEGACYHOOK) == GPWN_ARM_LEGACYHOOK) {
         if(!read_mem(mem_buffer, handle->trampoline_addr, ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, ARM_LEGACY_HOOKBYTES_LEN)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
 #elif defined(__x86_64__) || defined(__amd64__) || defined(__i386__) || defined(__x86__)
     if(handle->flags == GPWN_X86_SHORTHOOK) {
         if(!read_mem(mem_buffer, handle->trampoline_addr, handle->rbyte_len)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, handle->rbyte_len)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }
 #if defined(__x86_64__) || defined(__amd64__)
     if(handle->flags == GPWN_X86_64_LONGHOOK) {
         if(!read_mem(mem_buffer, handle->trampoline_addr + sizeof(void*), handle->rbyte_len)) {
-            // fputs("read_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: read_mem() failed.\n");
             return 0;
         }
         if(!write_mem(handle->address, mem_buffer, handle->rbyte_len)) {
-            // fputs("write_mem() failed.\n", stderr);
+            GPWN_LOG("rm_hook() error: write_mem() failed.\n");
             return 0;
         }
     }

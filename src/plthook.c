@@ -64,26 +64,20 @@ GPWNAPI plthook_handle *hook_plt(
 #ifdef __USE_GNU
         void *dlhandle = dlopen(libname, RTLD_NOLOAD | RTLD_LAZY);
         if(!dlhandle) {
-#ifdef GPWN_DEBUG
-            fprintf(stderr, "hook_plt() failed : no such library"
+            GPWN_LOG("hook_plt() failed : no such library"
                 "\"%s\" failed\n", libname);
-#endif
             return 0;
         }
         if(!get_linkdata_by_handle(dlhandle, &linkdata)) {
-#ifdef GPWN_DEBUG
-            fprintf(stderr, "hook_plt() failed :"
+            GPWN_LOG("hook_plt() failed :"
                 " dlinfo() couldn't retrive link_map\n");
-#endif
             dlclose(dlhandle);
             return 0;
         }
         dlclose(dlhandle);
 #else
         if(!get_linkdata_by_libname((char*) libname, &linkdata)) {
-#ifdef GPWN_DEBUG
-            fprintf(stderr, "hook_plt() failed : couldn't retrive linkdata\n");
-#endif
+            GPWN_LOG("hook_plt() failed : couldn't retrive linkdata\n");
             return 0;
         }
 #endif
@@ -111,10 +105,8 @@ GPWNAPI plthook_handle *hook_plt(
             rela_plt_size = dyn->d_un.d_val;
     }
     if(!symtab || !strtab || !rela_plt || !rela_plt_size) {
-#ifdef GPWN_DEBUG
-        fprintf(stderr, "hook_plt() failed :"
+        GPWN_LOG("hook_plt() failed :"
             " couldn't retrive .dynamic contents\n");
-#endif
         return 0;
     }
 #ifdef __ANDROID__
@@ -122,12 +114,10 @@ GPWNAPI plthook_handle *hook_plt(
     strtab = (char*) ((ElfW(Addr)) strtab + (ElfW(Addr)) baddr);
     rela_plt = (ElfW(Rela)*) ((ElfW(Addr)) rela_plt + (ElfW(Addr)) baddr);
 #endif
-// #ifdef GPWN_DEBUG
-    // printf("symtab\t: %p\n", symname);
-    // printf("strtab\t: %p\n", strtab);
-    // printf("rela_plt\t: %p\n", rela_plt);
-    // printf("rela_pltsz\t: %p\n", rela_plt_size);
-// #endif
+    GPWN_LOG("symtab\t: %p\n", (void*)symtab);
+    GPWN_LOG("strtab\t: %p\n", (void*)strtab);
+    GPWN_LOG("rela_plt\t: %p\n", (void*)rela_plt);
+    GPWN_LOG("rela_pltsz\t: %zu\n", rela_plt_size);
     // iterate through relocation table
     void **r_addr = 0;
     for (size_t i = 0; i < rela_plt_size / sizeof(ElfW(Rela)); i++) {
@@ -146,20 +136,14 @@ GPWNAPI plthook_handle *hook_plt(
             r_addr =  (void **) (rel->r_offset + baddr);
     }
     if(!r_addr) {
-#ifdef GPWN_DEBUG
-        fprintf(stderr, "hook_plt() failed : no such symbol as"
+        GPWN_LOG("hook_plt() failed : no such symbol as"
                 " \"%s\" in \"%s\"\n", symname, libname);
-#endif
         return 0;
     }
-// #ifdef GPWN_DEBUG
-//     printf("%s@%s : %p\n", symname, libname, r_addr);
-// #endif
+    GPWN_LOG("%s@%s : %p\n", symname, libname, (void*)r_addr);
     plthook_handle *handle = malloc(sizeof(plthook_handle));
     if(!handle) {
-#ifdef GPWN_DEBUG
-        fprintf(stderr, "hook_plt() failed : malloc() failed\n");
-#endif
+        GPWN_LOG("hook_plt() failed : malloc() failed\n");
         return 0;
     }
     handle->addr = r_addr;
@@ -170,9 +154,7 @@ GPWNAPI plthook_handle *hook_plt(
     // *r_addr = fake;
     void *fakeaddr = fake;
     if(!write_mem(r_addr, &fakeaddr, sizeof(void*))) {
-#ifdef GPWN_DEBUG
-        fprintf(stderr, "hook_plt() failed : write_mem() failed\n");
-#endif
+        GPWN_LOG("hook_plt() failed : write_mem() failed\n");
         free(handle);
         return 0;
     }

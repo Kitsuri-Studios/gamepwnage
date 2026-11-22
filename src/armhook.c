@@ -39,6 +39,7 @@ GPWNAPI uintptr_t arm64_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
 
     if (len%4 != 0 || len < 20) {
         //not alligned or not enough bytes
+        GPWN_LOG("arm64_detour() failed: invalid length specified.\n");
         return 0;
     }
     // get the system page size
@@ -47,12 +48,13 @@ GPWNAPI uintptr_t arm64_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
     size_t aligned_size = ((addr + len + page_size - 1) & ~(page_size - 1)) - aligned_addr;
     int old_protection = get_prot(aligned_addr);
     if(old_protection == -1) {
-        // fprintf(stderr, "can't retrive memory protection, at address: %p\n", aligned_addr);
+        GPWN_LOG("arm64_detour() failed: can't retrive memory protection, at address: %p\n", (void*)aligned_addr);
         return false;
     }
     if(!(old_protection & PROT_WRITE)) {
         if (mprotect((void *)aligned_addr, aligned_size, old_protection | PROT_WRITE) == -1) {
             // protection change failed
+            GPWN_LOG("arm64_detour() failed: can't change memory protection, at address: %p\n", (void*)aligned_addr);
             return false;
         }
     }
@@ -70,7 +72,7 @@ GPWNAPI uintptr_t arm64_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
     if(!(old_protection & PROT_WRITE)) {
         if (mprotect((void *)aligned_addr, aligned_size, old_protection) == -1) {
             // protection change failed
-            return false;
+            GPWN_LOG("arm64_detour() warning: can't restore memory protection, at address: %p\n", (void*)aligned_addr);
         }
     }
     return addr + len;
@@ -83,6 +85,7 @@ GPWNAPI uintptr_t arm32_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
 
     if (len%4 != 0 || len<12) {
         // not alligned or not enough bytes
+        GPWN_LOG("arm32_detour() failed: invalid length specified.\n");
         return 0;
     }
     // get the system page size
@@ -91,12 +94,13 @@ GPWNAPI uintptr_t arm32_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
     size_t aligned_size = ((addr + len + page_size - 1) & ~(page_size - 1)) - aligned_addr;
     int old_protection = get_prot(aligned_addr);
     if(old_protection == -1) {
-        // fprintf(stderr, "can't retrive memory protection, at address: %p\n", aligned_addr);
+        GPWN_LOG("arm32_detour() failed: can't retrive memory protection, at address: %p\n", (void*)aligned_addr);
         return false;
     }
     if(!(old_protection & PROT_WRITE)) {
         if (mprotect((void *)aligned_addr, aligned_size, old_protection | PROT_WRITE) == -1) {
             // protection change failed
+            GPWN_LOG("arm32_detour() failed: can't change memory protection, at address: %p\n", (void*)aligned_addr);
             return false;
         }
     }
@@ -114,7 +118,7 @@ GPWNAPI uintptr_t arm32_detour(uintptr_t addr, uintptr_t branchaddr, size_t len)
     if(!(old_protection & PROT_WRITE)) {
         if (mprotect((void *)aligned_addr, aligned_size, old_protection) == -1) {
             // protection change failed
-            return false;
+            GPWN_LOG("arm32_detour() warning: can't restore memory protection, at address: %p\n", (void*)aligned_addr);
         }
     }
     return addr + len;

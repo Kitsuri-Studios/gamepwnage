@@ -27,6 +27,7 @@ set(GAMEPWNAGE_SOURCES
     src/dynlib.c
     src/extras.c
     src/inlinehook.c
+    src/logger.c
     src/mem.c
     src/memscan.c
     src/nop.c
@@ -40,6 +41,7 @@ set(GAMEPWNAGE_HEADERS
     include/gamepwnage/dynlib.h
     include/gamepwnage/extras.h
     include/gamepwnage/inlinehook.h
+    include/gamepwnage/logger.h
     include/gamepwnage/mem.h
     include/gamepwnage/memscan.h
     include/gamepwnage/nop.h

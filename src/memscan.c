@@ -34,10 +34,8 @@ GPWNAPI sigscan_handle *sigscan_setup(const char *signature_str,
     const char *libname, int flags) {
     sigscan_handle *handle = malloc(sizeof(sigscan_handle));
     if(!handle) {
-#ifdef GPWN_DEBUG
-        fputs("sigscan_setup() failed : "
-            "malloc() couldn't allocate memory\n", stderr);
-#endif
+        GPWN_LOG("sigscan_setup() failed : "
+            "malloc() couldn't allocate memory\n");
         return 0;
     }
     handle->flags = flags;
@@ -48,10 +46,8 @@ GPWNAPI sigscan_handle *sigscan_setup(const char *signature_str,
         handle->libname = 0;
     handle->sig_size = parse_sigpattern(signature_str, &handle->sig, &handle->mask);
     if(handle->sig_size == (size_t)-1) {
-#ifdef GPWN_DEBUG
-        fputs("sigscan_setup() failed : "
-            "invalid signature string\n", stderr);
-#endif
+        GPWN_LOG("sigscan_setup() failed : "
+            "invalid signature string\n");
         if(handle->libname)
             free(handle->libname);
         free(handle);
@@ -63,10 +59,8 @@ GPWNAPI sigscan_handle *sigscan_setup_raw(byte *sigbyte, byte *mask,
     size_t sig_size, const char *libname, int flags) {
     sigscan_handle *handle = malloc(sizeof(sigscan_handle));
     if(!handle) {
-#ifdef GPWN_DEBUG
-        fputs("sigscan_setup_raw() failed : "
-            "malloc() couldn't allocate memory\n", stderr);
-#endif
+        GPWN_LOG("sigscan_setup_raw() failed : "
+            "malloc() couldn't allocate memory\n");
         return 0;
     }
     handle->flags = flags;
@@ -77,10 +71,8 @@ GPWNAPI sigscan_handle *sigscan_setup_raw(byte *sigbyte, byte *mask,
         handle->libname = 0;
     handle->sig = malloc(sig_size);
     if(!handle->sig) {
-#ifdef GPWN_DEBUG
-        fputs("sigscan_setup_raw() failed : "
-            "malloc() couldn't allocate memory\n", stderr);
-#endif
+        GPWN_LOG("sigscan_setup_raw() failed : "
+            "malloc() couldn't allocate memory\n");
         if(handle->libname)
             free(handle->libname);
         free(handle);
@@ -88,10 +80,8 @@ GPWNAPI sigscan_handle *sigscan_setup_raw(byte *sigbyte, byte *mask,
     }
     handle->mask = malloc(sig_size);
     if(!handle->mask) {
-#ifdef GPWN_DEBUG
-        fputs("sigscan_setup_raw() failed : "
-            "malloc() couldn't allocate memory\n", stderr);
-#endif
+        GPWN_LOG("sigscan_setup_raw() failed : "
+            "malloc() couldn't allocate memory\n");
         free(handle->sig);
         if(handle->libname)
             free(handle->libname);
@@ -131,26 +121,20 @@ GPWNAPI void *get_sigscan_result(sigscan_handle *handle) {
     }
     unsigned int map_count = get_proc_map_count(handle->libname);
     if(!map_count) {
-#ifdef GPWN_DEBUG
-        fputs("get_sigscan_result() failed : "
-            "couldn't retrieve map_count.\n", stderr);
-#endif
+        GPWN_LOG("get_sigscan_result() failed : "
+            "couldn't retrieve map_count.\n");
         return (void*) -1;
     }
     proc_map *maps = calloc(map_count, sizeof(proc_map));
     if(!maps) {
-#ifdef GPWN_DEBUG
-        fputs("get_sigscan_result() failed : "
-            "calloc() couldn't allocate memory\n", stderr);
-#endif
+        GPWN_LOG("get_sigscan_result() failed : "
+            "calloc() couldn't allocate memory\n");
         return (void*) -1;
     }
     map_count = get_proc_map(handle->libname, maps, map_count);
     if(!map_count) {
-#ifdef GPWN_DEBUG
-        fputs("get_sigscan_result() failed : "
-            "couldn't retrieve memory map.\n", stderr);
-#endif
+        GPWN_LOG("get_sigscan_result() failed : "
+            "couldn't retrieve memory map.\n");
         free(maps);
         return (void*) -1;
     }

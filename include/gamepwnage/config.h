@@ -20,8 +20,12 @@
         #define EXPORT_SYM
     #endif
     #define GPWN_BKND
+    #include <stdio.h>
+    extern FILE *gpwn_flog;
+    #define GPWN_LOG(...) fprintf((gpwn_flog) ? gpwn_flog : stderr, __VA_ARGS__)
 #else
     #define GPWN_BKND static
+    #define GPWN_LOG(...)
 #endif
 
 #ifdef EXPORT_SYM

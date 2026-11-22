@@ -41,7 +41,7 @@ GPWNAPI uintptr_t hook_x86(void *AddresstoHook, void *hookFunAddr, size_t len)
     if (len < 5)
     {
         // not enough bytes
-        // fprintf(stderr, "hook_x86() error: not enough memory to place a hook\n");
+        GPWN_LOG("hook_x86() error: not enough memory to place a hook\n");
         return 0;
     }
 
@@ -57,7 +57,7 @@ GPWNAPI uintptr_t hook_x86(void *AddresstoHook, void *hookFunAddr, size_t len)
     // Change memory protection to allow reading, writing, and executing
     if (mprotect((void *) aligned_addr, aligned_size, PROT_READ | PROT_WRITE | PROT_EXEC) == -1)
     {
-        // perror("Error changing memory protection");
+        GPWN_LOG("hook_x86() error: error changing memory protection: %s\n", strerror(errno));
         return 0;
     }
     // patch nops
@@ -70,7 +70,7 @@ GPWNAPI uintptr_t hook_x86(void *AddresstoHook, void *hookFunAddr, size_t len)
     // Restore the previous permisssion
     if (mprotect((void *) aligned_addr, len, old_protection) == -1)
     {
-        // perror("Error changing memory protection");
+        GPWN_LOG("hook_x86() warning: error changing memory protection: %s\n", strerror(errno));
         // won't returns "0" as hook already placed
     }
     return (uintptr_t)AddresstoHook + len;

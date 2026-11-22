@@ -28,7 +28,7 @@
 GPWNAPI unsigned int get_proc_map_count(const char *module) {
     FILE* fd = fopen("/proc/self/maps", "r");
     if (!fd) {
-        //perror("Can't open map...");
+        GPWN_LOG("get_proc_map_count() failed: Can't open map...\n");
         return 0;
     }
 
@@ -48,7 +48,7 @@ GPWNAPI unsigned int get_proc_map(const char *module,
     proc_map *map_array, unsigned int max_map_count)  {
     FILE* fd = fopen("/proc/self/maps", "r");
     if (!fd) {
-        //perror("Can't open map...");
+        GPWN_LOG("get_proc_map() failed: Can't open map...\n");
         return 0;
     }
 

@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <errno.h>
 #include <sys/mman.h>
 
@@ -55,8 +56,8 @@ GPWNAPI bool patch_nop(void *Address, size_t len)
     if((len % nopBytes_len) != 0)
     {
         //If invalid length
-        // fprintf(stderr, "[!] %s@%s: Invalid nop length specified at address 0x%lX! (must be a multiple of %d)", 
-        //     "PatchNop", "gamepwnage", (uintptr_t)Address, (int)nopBytes_len);
+        GPWN_LOG("[!] %s@%s: Invalid nop length specified at address 0x%lX! (must be a multiple of %d)\n",
+            "PatchNop", "gamepwnage", (unsigned long)(uintptr_t)Address, (int)nopBytes_len);
         return false;
     }
     
@@ -73,7 +74,7 @@ GPWNAPI bool patch_nop(void *Address, size_t len)
     // Change memory protection to allow reading, writing, and executing
     if (mprotect((void *)aligned_addr, aligned_size, PROT_READ | PROT_WRITE | PROT_EXEC) == -1)
     {
-        // perror("[X] PatchNop: Error changing memory protection");
+        GPWN_LOG("[X] PatchNop: Error changing memory protection: %s\n", strerror(errno));
         return false;
     }
 
@@ -92,7 +93,7 @@ GPWNAPI bool patch_nop(void *Address, size_t len)
     // Restore the original memory protection
     if (mprotect((void *)aligned_addr, aligned_size, old_protection) == -1)
     {
-        // perror("[X] PatchNop: Error restoring memory protection");
+        GPWN_LOG("[X] PatchNop: Error restoring memory protection: %s\n", strerror(errno));
         return false;
     }
 

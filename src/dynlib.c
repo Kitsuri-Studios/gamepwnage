@@ -143,7 +143,7 @@ GPWN_BKND int iterate_cb(struct dl_phdr_info *info, size_t size, void *arg) {
 
     if (!match) return 0;
 
-    // fputs("found library\n", stderr);
+    GPWN_LOG("found library\n");
 
     d->load_bias = info->dlpi_addr;
 
@@ -160,21 +160,21 @@ GPWN_BKND int iterate_cb(struct dl_phdr_info *info, size_t size, void *arg) {
 // Main function: resolve symbol from library
 GPWNAPI void *gpwn_dlsym(const char *libname, const char *symname) {
     if (!libname || !*libname || !symname || !*symname) {
-        // fputs("gpwn_dlsym: invalid arguments\n", stderr);
+        GPWN_LOG("gpwn_dlsym: invalid arguments\n");
         return NULL;
     }
 
-    // fputs("gpwn_dlsym: looking for symbol\n", stderr);
+    GPWN_LOG("gpwn_dlsym: looking for symbol\n");
 
     struct find_lib_data data = {libname, 0, NULL};
 
     if (!dl_iterate_phdr(iterate_cb, &data)) {
-        // fputs("gpwn_dlsym: library not found\n", stderr);
+        GPWN_LOG("gpwn_dlsym: library not found\n");
         return NULL;
     }
 
     if (!data.dynamic) {
-        // fputs("gpwn_dlsym: no PT_DYNAMIC segment\n", stderr);
+        GPWN_LOG("gpwn_dlsym: no PT_DYNAMIC segment\n");
         return NULL;
     }
 
@@ -243,7 +243,7 @@ GPWNAPI void *gpwn_dlsym(const char *libname, const char *symname) {
     }
 
     if (!symtab || !strtab) {
-        // fputs("gpwn_dlsym: symtab or strtab not found\n", stderr);
+        GPWN_LOG("gpwn_dlsym: symtab or strtab not found\n");
         return NULL;
     }
 
@@ -251,7 +251,7 @@ GPWNAPI void *gpwn_dlsym(const char *libname, const char *symname) {
 
     // Try GNU hash first
     if (gnu_buckets_cnt > 0) {
-        // fputs("gpwn_dlsym: using GNU hash\n", stderr);
+        GPWN_LOG("gpwn_dlsym: using GNU hash\n");
         sym = find_sym_gnu(
                 symtab, strtab, gnu_buckets, gnu_buckets_cnt,
                 gnu_chains, gnu_symoffset, gnu_bloom, gnu_bloom_cnt, gnu_bloom_shift, symname);
@@ -259,23 +259,23 @@ GPWNAPI void *gpwn_dlsym(const char *libname, const char *symname) {
 
     // Fallback to SysV hash
     if (!sym && sysv_buckets_cnt > 0) {
-        // fputs("gpwn_dlsym: using SYSV hash\n", stderr);
+        GPWN_LOG("gpwn_dlsym: using SYSV hash\n");
         sym = find_sym_sysv(
                 symtab, strtab, sysv_buckets, sysv_buckets_cnt,
                 sysv_chains, sysv_chains_cnt, symname);
     }
 
     if (!sym) {
-        // fputs("gpwn_dlsym: symbol not found\n", stderr);
+        GPWN_LOG("gpwn_dlsym: symbol not found\n");
         return NULL;
     }
 
     if (sym->st_shndx == SHN_UNDEF) {
-        // fputs("gpwn_dlsym: symbol is undefined\n", stderr);
+        GPWN_LOG("gpwn_dlsym: symbol is undefined\n");
         return NULL;
     }
 
     void *addr = (void *)(load_bias + sym->st_value);
-    // fputs("gpwn_dlsym: found symbol\n", stderr);
+    GPWN_LOG("gpwn_dlsym: found symbol\n");
     return addr;
 }
